@@ -16,6 +16,7 @@ def get_default_args():
         "task": "unsupervised_node_classification",
         "checkpoint": False,
         "load_emb_path": None,
+        "training_percents": [0.1],
     }
     return build_args_from_dict(default_dict)
 
@@ -32,13 +33,13 @@ def test_deepwalk_wikipedia():
     args.iteration = 1
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_line_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "line"
     args.walk_length = 1
     args.walk_num = 1
@@ -48,13 +49,13 @@ def test_line_ppi():
     args.order = 1
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_node2vec_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "node2vec"
     args.walk_length = 5
     args.walk_num = 1
@@ -65,18 +66,18 @@ def test_node2vec_ppi():
     args.q = 1.0
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_hope_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "hope"
     args.beta = 0.001
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_prone_module():
@@ -99,18 +100,18 @@ def test_prone_module():
 def test_grarep_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "grarep"
     args.step = 1
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_netmf_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "netmf"
     args.window_size = 2
     args.rank = 32
@@ -118,13 +119,13 @@ def test_netmf_ppi():
     args.is_large = False
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_netsmf_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "netsmf"
     args.window_size = 3
     args.negative = 1
@@ -132,7 +133,7 @@ def test_netsmf_ppi():
     args.worker = 5
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_prone_blogcatalog():
@@ -145,13 +146,13 @@ def test_prone_blogcatalog():
     args.mu = 0.2
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_prone_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "prone"
     args.enhance = "prone++"
     args.max_evals = 3
@@ -160,7 +161,7 @@ def test_prone_ppi():
     args.mu = 0.2
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_prone_usa_airport():
@@ -173,23 +174,23 @@ def test_prone_usa_airport():
     args.mu = 0.2
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_spectral_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "spectral"
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_sdne_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "sdne"
     args.hidden_size1 = 100
     args.hidden_size2 = 16
@@ -202,13 +203,13 @@ def test_sdne_ppi():
     args.lr = 0.001
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def test_dngr_ppi():
     args = get_default_args()
     args.task = "unsupervised_node_classification"
-    args.dataset = "ppi"
+    args.dataset = "ppi-ne"
     args.model = "dngr"
     args.hidden_size1 = 100
     args.hidden_size2 = 16
@@ -219,7 +220,7 @@ def test_dngr_ppi():
     args.lr = 0.001
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 def get_unsupervised_nn_args():
@@ -241,6 +242,7 @@ def get_unsupervised_nn_args():
         "task": "unsupervised_node_classification",
         "checkpoint": False,
         "load_emb_path": None,
+        "training_percents": [0.1],
     }
     return build_args_from_dict(default_dict)
 
@@ -337,7 +339,7 @@ def test_gcc_usa_airport():
     args.load_path = "./saved/gcc_pretrained.pth"
     task = build_task(args)
     ret = task.train()
-    assert ret["Micro-F1 0.9"] > 0
+    assert ret["Micro-F1 0.1"] > 0
 
 
 if __name__ == "__main__":

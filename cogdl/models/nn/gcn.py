@@ -34,13 +34,8 @@ class GraphConvolution(nn.Module):
     def forward(self, input, edge_index, edge_attr=None):
         if edge_attr is None:
             edge_attr = torch.ones(edge_index.shape[1]).float().to(input.device)
-        adj = torch.sparse_coo_tensor(
-            edge_index,
-            edge_attr,
-            (input.shape[0], input.shape[0]),
-        ).to(input.device)
         support = torch.mm(input, self.weight)
-        output = torch.spmm(adj, support)
+        output = spmm(edge_index, edge_attr, support)
         if self.bias is not None:
             return output + self.bias
         else:
@@ -83,6 +78,16 @@ class TKipfGCN(BaseModel):
         self.layers = nn.ModuleList([GraphConvolution(shapes[i], shapes[i + 1]) for i in range(num_layers)])
         self.num_layers = num_layers
         self.dropout = dropout
+
+    def get_embeddings(self, x, edge_index):
+        edge_index, edge_attr = add_remaining_self_loops(edge_index, num_nodes=x.shape[0])
+        edge_attr = symmetric_normalization(x.shape[0], edge_index, edge_attr)
+
+        h = x
+        for i in range(self.num_layers - 1):
+            h = F.dropout(h, self.dropout, training=self.training)
+            h = self.layers[i](h, edge_index, edge_attr)
+        return h
 
     def forward(self, x, edge_index):
 
