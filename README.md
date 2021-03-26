@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/github/license/thudm/cogdl)](https://github.com/THUDM/cogdl/blob/master/LICENSE)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
-**[Homepage](http://keg.cs.tsinghua.edu.cn/cogdl)** | **[Leaderboards](./cogdl/tasks/README.md)** | **[Documentation](https://cogdl.readthedocs.io)** | **[BAAI link](http://open.baai.ac.cn/cogdl-toolkit)** |  **[Datasets](./cogdl/datasets/README.md)** | **[中文](./README_CN.md)**
+**[Homepage](http://keg.cs.tsinghua.edu.cn/cogdl)** | **[Paper](https://arxiv.org/abs/2103.00959)** | **[Leaderboards](./cogdl/tasks/README.md)** | **[Documentation](https://cogdl.readthedocs.io)** | **[BAAI link](http://open.baai.ac.cn/cogdl-toolkit)** |  **[Datasets](./cogdl/datasets/README.md)** | **[Join our Slack](https://join.slack.com/t/cogdl/shared_invite/zt-b9b4a49j-2aMB035qZKxvjV4vqf0hEg)** | **[中文](./README_CN.md)**
 
 CogDL is a graph representation learning toolkit that allows researchers and developers to easily train and compare baseline or customized models for node classification, graph classification, and other important tasks in the graph domain. 
 
@@ -20,6 +20,10 @@ We summarize the contributions of CogDL as follows:
 - **Reproducibility**: CogDL provides reproducible leaderboards for state-of-the-art models on most of important tasks in the graph domain.
 
 ## ❗ News
+
+- CogDL supports GNN models with Mixture of Experts (MoE). You can install [FastMoE](https://github.com/laekov/fastmoe) and try **[MoE GCN](./cogdl/models/nn/moe_gcn.py)** in CogDL now!
+
+- The new **v0.3.0 release** provides a fast spmm operator to speed up GNN training. We also release the first version of **[CogDL paper](https://arxiv.org/abs/2103.00959)** in arXiv. You can join [our slack](https://join.slack.com/t/cogdl/shared_invite/zt-b9b4a49j-2aMB035qZKxvjV4vqf0hEg) for discussion. 🎉🎉🎉
 
 - The new **v0.2.0 release** includes easy-to-use `experiment` and `pipeline` APIs for all experiments and applications. The `experiment` API supports automl features of searching hyper-parameters. This release also provides `OAGBert` API for model inference (`OAGBert` is trained on large-scale academic corpus by our lab). Some features and models are added by the open source community (thanks to all the contributors 🎉).
 
@@ -95,14 +99,12 @@ from cogdl import pipeline
 stats = pipeline("dataset-stats")
 stats(["cora", "citeseer"])
 
-# visualize k-hop neighbors of seed in the dataset
-visual = pipeline("dataset-visual")
-visual("cora", seed=0, depth=3)
-
 # load OAGBert model and perform inference
 oagbert = pipeline("oagbert")
 outputs = oagbert(["CogDL is developed by KEG, Tsinghua.", "OAGBert is developed by KEG, Tsinghua."])
 ```
+
+More details of the OAGBert usage can be found [here](./cogdl/oag/README.md).
 
 ### Command-Line Usage
 
@@ -141,6 +143,12 @@ Expected output:
 | ('cora', 'gat') | 0.8262±0.0032 |
 
 If you have ANY difficulties to get things working in the above steps, feel free to open an issue. You can expect a reply within 24 hours.
+
+### Fast-Spmm Usage
+
+CogDL provides a fast sparse matrix-matrix multiplication operator called [GE-SpMM](https://arxiv.org/abs/2007.03179) to speed up training of GNN models on the GPU. 
+You can set `fast_spmm=True` in the API usage or `--fast-spmm` in the command-line usage to enable this feature.
+Note that this feature is still in testing and may not work under some versions of CUDA.
 
 ## Docker container
 
@@ -189,9 +197,14 @@ $ python scripts/model_maker.py
 
 Before committing your modification, please first run `pre-commit install` to setup the git hook for checking code format and style using `black` and `flake8`. Then the `pre-commit` will run automatically on `git commit`! Detailed information of `pre-commit` can be found [here](https://pre-commit.com/).
 
-#### A brief guide to having a successful pull request (unit test)
+## ❗ FAQ
 
-To have a successful pull request, you need to have at least (1) your model script and (2) a unit test.
+<details>
+<summary>
+How to make a successful pull request with unit test
+</summary>
+<br/>
+To have a successful pull request, you need to have at least (1) your model implementation and (2) a unit test.
 
 You might be confused why your pull request was rejected because of 'Coverage decreased ...' issue even though your model is working fine locally. This is because you have not included a unit test, which essentially runs through the extra lines of code you added. The Travis CI service used by Github conducts all unit tests on the code you committed and checks how many lines of the code have been checked by the unit tests, and if a significant portion of your code has not been checked (insufficient coverage), the pull request is rejected.
 
@@ -200,5 +213,17 @@ So how do you do a unit test?
 * Let's say you implement a GNN model in a script `models/nn/abcgnn.py` that does the task of node classification. Then, you need to add a unit test inside the script `tests/tasks/test_node_classification.py` (or whatever relevant task your model does). 
 * To add the unit test, you simply add a function *test_abcgnn_cora()* (just follow the format of the other unit tests already in the script), fill it with required arguments and the last line in the function *'assert 0 <= ret["Acc"] <= 1'* is the very basic sanity check conducted by the unit test. 
 * Then, in the main section, remember to call your test_abcgnn_cora() function. After modifying `tests/tasks/test_node_classification.py`, commit it together with your `models/nn/abcgnn.py` and your pull request should pass.
+</details>
 
-It is also a good idea to include an example script examples/gnn_models/abcgnn.py to show how your model can be run with appropriate arguments.
+## Citing CogDL
+
+Please cite [our paper](https://arxiv.org/abs/2103.00959) if you find our code or results useful for your research:
+
+```
+@article{cen2021cogdl,
+    title={CogDL: An Extensive Toolkit for Deep Learning on Graphs},
+    author={Yukuo Cen and Zhenyu Hou and Yan Wang and Qibin Chen and Yizhen Luo and Xingcheng Yao and Aohan Zeng and Shiguang Guo and Peng Zhang and Guohao Dai and Yu Wang and Chang Zhou and Hongxia Yang and Jie Tang},
+    journal={arXiv preprint arXiv:2103.00959},
+    year={2021}
+}
+```

@@ -1,7 +1,7 @@
 import importlib
 
 from cogdl.data.dataset import Dataset
-from .customizezd_data import CustomizedGraphClassificationDataset, CustomizedNodeClassificationDataset, BaseDataset
+from .customized_data import CustomizedGraphClassificationDataset, CustomizedNodeClassificationDataset, BaseDataset
 
 try:
     import torch_geometric
@@ -84,7 +84,7 @@ SUPPORTED_DATASETS = {
     "ogbn-arxiv": "cogdl.datasets.ogb",
     "ogbn-products": "cogdl.datasets.ogb",
     "ogbn-proteins": "cogdl.datasets.ogb",
-    "ogbn-mag": "cogdl.datasets.ogb",
+    "ogbn-mag": "cogdl.datasets.pyg_ogb",
     "ogbn-papers100M": "cogdl.datasets.ogb",
     "ogbg-molbace": "cogdl.datasets.ogb",
     "ogbg-molhiv": "cogdl.datasets.ogb",
@@ -133,8 +133,8 @@ SUPPORTED_DATASETS = {
     "reddit": "cogdl.datasets.saint_data",
     "ppi": "cogdl.datasets.saint_data",
     "ppi-large": "cogdl.datasets.saint_data",
-    "test_bio": "cogdl.datasets.pyg_strategies_data",
-    "test_chem": "cogdl.datasets.pyg_strategies_data",
+    "test_bio": "cogdl.datasets.strategies_data",
+    "test_chem": "cogdl.datasets.strategies_data",
     "bio": "cogdl.datasets.strategies_data",
     "chem": "cogdl.datasets.strategies_data",
     "bace": "cogdl.datasets.strategies_data",

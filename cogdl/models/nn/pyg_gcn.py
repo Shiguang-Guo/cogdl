@@ -45,11 +45,13 @@ class GCN(BaseModel):
             [GCNConv(shapes[layer], shapes[layer + 1], cached=False) for layer in range(num_layers)]
         )
 
-    def forward(self, x, edge_index, weight=None):
+    def forward(self, graph):
+        x = graph.x
+        edge_index, edge_weight = graph.edge_index, graph.edge_weight
         for conv in self.convs[:-1]:
-            x = F.relu(conv(x, edge_index, weight))
+            x = F.relu(conv(x, edge_index, edge_weight))
             x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.convs[-1](x, edge_index, weight)
+        x = self.convs[-1](x, edge_index, edge_weight)
         return F.log_softmax(x, dim=1)
 
     def get_embeddings(self, x, edge_index, weight=None):
@@ -57,12 +59,3 @@ class GCN(BaseModel):
             x = F.relu(conv(x, edge_index, weight))
             x = F.dropout(x, p=self.dropout, training=self.training)
         return x
-
-    def node_classification_loss(self, data):
-        return F.nll_loss(
-            self.forward(data.x, data.edge_index, None if "norm_aggr" not in data else data.norm_aggr)[data.train_mask],
-            data.y[data.train_mask],
-        )
-
-    def predict(self, data):
-        return self.forward(data.x, data.edge_index, None if "norm_aggr" not in data else data.norm_aggr)

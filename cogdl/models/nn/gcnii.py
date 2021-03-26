@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .. import register_model, BaseModel
-from cogdl.utils import spmm, symmetric_normalization, row_normalization, add_remaining_self_loops
+from cogdl.utils import symmetric_normalization, add_remaining_self_loops, spmm
 
 
 class GCNIILayer(nn.Module):
@@ -22,8 +22,9 @@ class GCNIILayer(nn.Module):
         stdv = 1.0 / math.sqrt(self.n_channels)
         self.weight.data.uniform_(-stdv, stdv)
 
-    def forward(self, x, edge_index, edge_attr, init_x):
-        hidden = spmm(edge_index, edge_attr, x)
+    def forward(self, graph, x, init_x):
+        """Symmetric normalization"""
+        hidden = spmm(graph, x)
         hidden = (1 - self.alpha) * hidden + self.alpha * init_x
         h = self.beta * torch.matmul(hidden, self.weight) + (1 - self.beta) * hidden
         if self.residual:
@@ -65,6 +66,7 @@ class GCNII(BaseModel):
         parser.add_argument("--dropout", type=float, default=0.6)
         parser.add_argument("--wd1", type=float, default=0.01)
         parser.add_argument("--wd2", type=float, default=5e-4)
+        parser.add_argument("--residual", action="store_true")
 
     @classmethod
     def build_model_from_args(cls, args):
@@ -78,9 +80,22 @@ class GCNII(BaseModel):
             lmbda=args.lmbda,
             wd1=args.wd1,
             wd2=args.wd2,
+            residual=args.residual,
         )
 
-    def __init__(self, in_feats, hidden_size, out_feats, num_layers, dropout=0.5, alpha=0.1, lmbda=1, wd1=0.0, wd2=0.0):
+    def __init__(
+        self,
+        in_feats,
+        hidden_size,
+        out_feats,
+        num_layers,
+        dropout=0.5,
+        alpha=0.1,
+        lmbda=1,
+        wd1=0.0,
+        wd2=0.0,
+        residual=False,
+    ):
         super(GCNII, self).__init__()
         self.fc_layers = nn.ModuleList()
         self.fc_layers.append(nn.Linear(in_features=in_feats, out_features=hidden_size))
@@ -93,41 +108,16 @@ class GCNII(BaseModel):
         self.wd2 = wd2
 
         self.layers = nn.ModuleList(
-            GCNIILayer(hidden_size, self.alpha, math.log(self.lmbda / (i + 1) + 1)) for i in range(num_layers)
+            GCNIILayer(hidden_size, self.alpha, math.log(self.lmbda / (i + 1) + 1), residual) for i in range(num_layers)
         )
         self.activation = F.relu
 
         self.fc_parameters = list(self.fc_layers.parameters())
         self.conv_parameters = list(self.layers.parameters())
-        self.cache = dict()
 
-    def forward(self, x, edge_index, edge_attr=None):
-        num_edges = edge_index.shape[1]
-        _attr = f"edge_attr_{num_edges}"
-        if _attr not in self.cache:
-            if edge_attr is not None:
-                self.cache[_attr] = edge_attr
-            else:
-                edge_index, edge_weight = add_remaining_self_loops(
-                    edge_index=edge_index,
-                    edge_weight=torch.ones(edge_index.shape[1]).to(x.device),
-                    fill_value=1,
-                    num_nodes=x.shape[0],
-                )
-                self.cache[_attr] = symmetric_normalization(
-                    num_nodes=x.shape[0],
-                    edge_index=edge_index,
-                    edge_weight=edge_weight,
-                )
-        else:
-            edge_index, _ = add_remaining_self_loops(
-                edge_index=edge_index,
-                edge_weight=torch.ones(edge_index.shape[1]).to(x.device),
-                fill_value=1,
-                num_nodes=x.shape[0],
-            )
-        edge_attr = self.cache[_attr]
-
+    def forward(self, graph):
+        graph.sym_norm()
+        x = graph.x
         init_h = F.dropout(x, p=self.dropout, training=self.training)
         init_h = F.relu(self.fc_layers[0](init_h))
 
@@ -135,14 +125,14 @@ class GCNII(BaseModel):
 
         for layer in self.layers:
             h = F.dropout(h, p=self.dropout, training=self.training)
-            h = layer(h, edge_index, edge_attr, init_h)
+            h = layer(graph, h, init_h)
             h = self.activation(h)
         h = F.dropout(h, p=self.dropout, training=self.training)
         out = self.fc_layers[1](h)
         return out
 
-    def predict(self, data):
-        return self.forward(data.x, data.edge_index)
+    def predict(self, graph):
+        return self.forward(graph)
 
     def get_optimizer(self, args):
         return torch.optim.Adam(

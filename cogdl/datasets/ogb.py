@@ -1,12 +1,10 @@
-import os.path as osp
-
 import torch
 
 from ogb.nodeproppred import NodePropPredDataset
 from ogb.graphproppred import GraphPropPredDataset
 
 from . import register_dataset
-from cogdl.data import Dataset, Data, DataLoader
+from cogdl.data import Dataset, Graph, DataLoader
 from cogdl.utils import cross_entropy_loss, accuracy, remove_self_loops
 
 
@@ -31,6 +29,7 @@ def coalesce(row, col, edge_attr=None):
 
 class OGBNDataset(Dataset):
     def __init__(self, root, name):
+        super(OGBNDataset, self).__init__(root)
         dataset = NodePropPredDataset(name, root)
         graph, y = dataset[0]
         x = torch.tensor(graph["node_feat"])
@@ -44,7 +43,7 @@ class OGBNDataset(Dataset):
         if edge_attr is not None:
             edge_attr = torch.cat([edge_attr, edge_attr], dim=0)
 
-        self.data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+        self.data = Graph(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
         self.data.num_nodes = graph["num_nodes"]
         assert self.data.num_nodes == self.data.x.shape[0]
 
@@ -68,6 +67,12 @@ class OGBNDataset(Dataset):
 
     def get_evaluator(self):
         return accuracy
+
+    def _download(self):
+        pass
+
+    def _process(self):
+        pass
 
 
 @register_dataset("ogbn-arxiv")
@@ -112,6 +117,7 @@ class OGBPapers100MDataset(OGBNDataset):
 
 class OGBGDataset(Dataset):
     def __init__(self, root, name):
+        super(OGBGDataset, self).__init__(root)
         self.name = name
         self.dataset = GraphPropPredDataset(self.name, root)
 
@@ -120,7 +126,7 @@ class OGBGDataset(Dataset):
         self.all_edges = 0
         for i in range(len(self.dataset.graphs)):
             graph, label = self.dataset[i]
-            data = Data(
+            data = Graph(
                 x=torch.tensor(graph["node_feat"], dtype=torch.float),
                 edge_index=torch.tensor(graph["edge_index"]),
                 edge_attr=None if "edge_feat" not in graph else torch.tensor(graph["edge_feat"], dtype=torch.float),
@@ -149,6 +155,12 @@ class OGBGDataset(Dataset):
 
     def get(self, idx):
         return self.graphs[idx]
+
+    def _download(self):
+        pass
+
+    def _process(self):
+        pass
 
     @property
     def num_classes(self):

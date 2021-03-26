@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from .. import register_model, BaseModel
 from cogdl.utils import mul_edge_softmax, spmm, get_activation
-from cogdl.trainers.deepergcn_trainer import DeeperGCNTrainer
+from cogdl.trainers.sampled_trainer import DeeperGCNTrainer
 
 
 class GENConv(nn.Module):
@@ -32,14 +32,22 @@ class GENConv(nn.Module):
         self.aggr = aggr
         if aggr == "softmax_sg":
             self.beta = torch.nn.Parameter(
-                torch.Tensor([beta,]),
+                torch.Tensor(
+                    [
+                        beta,
+                    ]
+                ),
                 requires_grad=learn_beta,
             )
         else:
             self.register_buffer("beta", None)
         if aggr == "powermean":
             self.p = torch.nn.Parameter(
-                torch.Tensor([p,]),
+                torch.Tensor(
+                    [
+                        p,
+                    ]
+                ),
                 requires_grad=learn_p,
             )
         else:
@@ -55,25 +63,20 @@ class GENConv(nn.Module):
         msg_norm = msg_norm * x_norm.unsqueeze(-1)
         return x + self.s * msg_norm
 
-    def forward(self, x, edge_index, edge_attr=None):
-        device = x.device
+    def forward(self, graph, x):
+        edge_index = graph.edge_index
         dim = x.shape[1]
-        num_nodes = x.shape[0]
         edge_msg = x[edge_index[1]]  # if edge_attr is None else x[edge_index[1]] + edge_attr
         edge_msg = self.act(edge_msg) + self.eps
 
         if self.aggr == "softmax_sg":
-            h = mul_edge_softmax(edge_index, self.beta * edge_msg, shape=(num_nodes, num_nodes))
+            h = mul_edge_softmax(graph, self.beta * edge_msg).T
             h = edge_msg * h
         elif self.aggr == "softmax":
-            h = mul_edge_softmax(edge_index, edge_msg, shape=(num_nodes, num_nodes))
+            h = mul_edge_softmax(graph, edge_msg).T
             h = edge_msg * h
         elif self.aggr == "powermean":
-            deg = spmm(
-                indices=edge_index,
-                values=torch.ones(edge_index.shape[1]),
-                b=torch.ones(num_nodes).unsqueeze(-1).to(device),
-            ).view(-1)
+            deg = graph.degrees()
             h = edge_msg.pow(self.t) / deg[edge_index[0]].unsqueeze(-1)
         else:
             raise NotImplementedError
@@ -124,17 +127,17 @@ class DeepGCNLayer(nn.Module):
         self.norm = nn.BatchNorm1d(out_feat, affine=True)
         self.checkpoint_grad = checkpoint_grad
 
-    def forward(self, x, edge_index):
+    def forward(self, graph, x):
         if self.connection == "res+":
             h = self.norm(x)
             h = self.activation(h)
             h = F.dropout(h, p=self.dropout, training=self.training)
             if self.checkpoint_grad:
-                h = checkpoint(self.conv, h, edge_index)
+                h = checkpoint(self.conv, graph, h)
             else:
-                h = self.conv(h, edge_index)
+                h = self.conv(graph, h)
         elif self.connection == "res":
-            h = self.conv(x, edge_index)
+            h = self.conv(graph, x)
             h = self.norm(h)
             h = self.activation(h)
         else:
@@ -154,8 +157,6 @@ class DeeperGCN(BaseModel):
         parser.add_argument("--dropout", type=float, default=0.5)
         parser.add_argument("--connection", type=str, default="res+")
         parser.add_argument("--activation", type=str, default="relu")
-        parser.add_argument("--batch-size", type=int, default=1)
-        parser.add_argument("--cluster-number", type=int, default=10)
         parser.add_argument("--aggr", type=str, default="softmax_sg")
         parser.add_argument("--beta", type=float, default=1.0)
         parser.add_argument("--p", type=float, default=1.0)
@@ -241,22 +242,18 @@ class DeeperGCN(BaseModel):
         self.activation = get_activation(activation)
         self.fc = nn.Linear(hidden_size, out_feat)
 
-    def forward(self, x, edge_index, edge_attr=None):
+    def forward(self, graph):
+        x = graph.x
         h = self.feat_encoder(x)
         for layer in self.layers:
-            h = layer(h, edge_index)
+            h = layer(graph, h)
         h = self.activation(self.norm(h))
         h = F.dropout(h, p=self.dropout, training=self.training)
         h = self.fc(h)
         return h
 
-    def node_classification_loss(self, x, edge_index, y, x_mask):
-        pred = self.forward(x, edge_index)
-        pred = F.log_softmax(pred, dim=-1)[x_mask]
-        return F.nll_loss(pred, y)
-
-    def predict(self, x, edge_index):
-        return self.forward(x, edge_index)
+    def predict(self, graph):
+        return self.forward(graph)
 
     @staticmethod
     def get_trainer(taskType: Any, args):

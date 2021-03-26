@@ -5,8 +5,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .. import BaseModel, register_model
+from .mlp import MLP
 from cogdl.data import DataLoader
-from cogdl.utils import remove_self_loops
+from cogdl.utils import spmm
+
+
+def split_dataset_general(dataset, args):
+    droplast = args.model == "diffpool"
+
+    train_size = int(len(dataset) * args.train_ratio)
+    test_size = int(len(dataset) * args.test_ratio)
+    index = list(range(len(dataset)))
+    random.shuffle(index)
+
+    train_index = index[:train_size]
+    test_index = index[-test_size:]
+
+    bs = args.batch_size
+    train_loader = DataLoader([dataset[i] for i in train_index], batch_size=bs, drop_last=droplast)
+    test_loader = DataLoader([dataset[i] for i in test_index], batch_size=bs, drop_last=droplast)
+    if args.train_ratio + args.test_ratio < 1:
+        val_index = index[train_size:-test_size]
+        valid_loader = DataLoader([dataset[i] for i in val_index], batch_size=bs, drop_last=droplast)
+    else:
+        valid_loader = test_loader
+    return train_loader, valid_loader, test_loader
 
 
 class GINLayer(nn.Module):
@@ -36,64 +59,16 @@ class GINLayer(nn.Module):
             self.register_buffer("eps", torch.FloatTensor([eps]))
         self.apply_func = apply_func
 
-    def forward(self, x, edge_index, edge_weight=None):
-        edge_index, _ = remove_self_loops(edge_index)
-        edge_weight = torch.ones(edge_index.shape[1]).to(x.device) if edge_weight is None else edge_weight
-        adj = torch.sparse_coo_tensor(edge_index, edge_weight, (x.shape[0], x.shape[0]))
-        adj = adj.to(x.device)
-        out = (1 + self.eps) * x + torch.spmm(adj, x)
+    def forward(self, graph, x):
+        # edge_index, _ = remove_self_loops()
+        # edge_weight = torch.ones(edge_index.shape[1]).to(x.device) if edge_weight is None else edge_weight
+        # adj = torch.sparse_coo_tensor(edge_index, edge_weight, (x.shape[0], x.shape[0]))
+        # adj = adj.to(x.device)
+        # out = (1 + self.eps) * x + torch.spmm(adj, x)
+        out = (1 + self.eps) * x + spmm(graph, x)
         if self.apply_func is not None:
             out = self.apply_func(out)
         return out
-
-
-class GINMLP(nn.Module):
-    r"""Multilayer perception with batch normalization
-
-    .. math::
-        x^{(i+1)} = \sigma(W^{i}x^{(i)})
-
-    Parameters
-    ----------
-    in_feats : int
-        Size of each input sample.
-    out_feats : int
-        Size of each output sample.
-    hidden_dim : int
-        Size of hidden layer dimension.
-    use_bn : bool, optional
-        Apply batch normalization if True, default: `True).
-    """
-
-    def __init__(self, in_feats, out_feats, hidden_dim, num_layers, use_bn=True, activation=None):
-        super(GINMLP, self).__init__()
-        self.use_bn = use_bn
-        self.nn = nn.ModuleList()
-        if use_bn:
-            self.bn = nn.ModuleList()
-        self.num_layers = num_layers
-        if num_layers < 1:
-            raise ValueError("number of MLP layers should be positive")
-        elif num_layers == 1:
-            self.nn.append(nn.Linear(in_feats, out_feats))
-        else:
-            for i in range(num_layers - 1):
-                if i == 0:
-                    self.nn.append(nn.Linear(in_feats, hidden_dim))
-                else:
-                    self.nn.append(nn.Linear(hidden_dim, hidden_dim))
-                if use_bn:
-                    self.bn.append(nn.BatchNorm1d(hidden_dim))
-            self.nn.append(nn.Linear(hidden_dim, out_feats))
-
-    def forward(self, x):
-        h = x
-        for i in range(self.num_layers - 1):
-            h = self.nn[i](h)
-            if self.use_bn:
-                h = self.bn[i](h)
-            h = F.relu(h)
-        return self.nn[self.num_layers - 1](h)
 
 
 @register_model("gin")
@@ -150,17 +125,7 @@ class GIN(BaseModel):
 
     @classmethod
     def split_dataset(cls, dataset, args):
-        random.shuffle(dataset)
-        train_size = int(len(dataset) * args.train_ratio)
-        test_size = int(len(dataset) * args.test_ratio)
-        bs = args.batch_size
-        train_loader = DataLoader(dataset[:train_size], batch_size=bs)
-        test_loader = DataLoader(dataset[-test_size:], batch_size=bs)
-        if args.train_ratio + args.test_ratio < 1:
-            valid_loader = DataLoader(dataset[train_size:-test_size], batch_size=bs)
-        else:
-            valid_loader = test_loader
-        return train_loader, valid_loader, test_loader
+        return split_dataset_general(dataset, args)
 
     def __init__(
         self,
@@ -180,9 +145,9 @@ class GIN(BaseModel):
         self.num_layers = num_layers
         for i in range(num_layers - 1):
             if i == 0:
-                mlp = GINMLP(in_feats, hidden_dim, hidden_dim, num_mlp_layers)
+                mlp = MLP(in_feats, hidden_dim, hidden_dim, num_mlp_layers, norm="batchnorm")
             else:
-                mlp = GINMLP(hidden_dim, hidden_dim, hidden_dim, num_mlp_layers)
+                mlp = MLP(hidden_dim, hidden_dim, hidden_dim, num_mlp_layers, norm="batchnorm")
             self.gin_layers.append(GINLayer(mlp, eps, train_eps))
             self.batch_norm.append(nn.BatchNorm1d(hidden_dim))
 
@@ -202,7 +167,7 @@ class GIN(BaseModel):
 
         layer_rep = [h]
         for i in range(self.num_layers - 1):
-            h = self.gin_layers[i](h, batch.edge_index)
+            h = self.gin_layers[i](batch, h)
             h = self.batch_norm[i](h)
             h = F.relu(h)
             layer_rep.append(h)

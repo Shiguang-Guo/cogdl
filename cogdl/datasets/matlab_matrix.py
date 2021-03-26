@@ -4,8 +4,9 @@ from itertools import product
 import numpy as np
 import scipy.io
 import torch
+import time
 
-from cogdl.data import Data, Dataset
+from cogdl.data import Graph, Dataset
 from cogdl.utils import download_url
 
 from . import register_dataset
@@ -18,6 +19,9 @@ class MatlabMatrix(Dataset):
         root (string): Root directory where the dataset should be saved.
         name (string): The name of the dataset (:obj:`"Blogcatalog"`).
     """
+
+    def __len__(self):
+        return 1
 
     def __init__(self, root, name, url):
         self.name = name
@@ -62,7 +66,7 @@ class MatlabMatrix(Dataset):
         edge_index = torch.stack([torch.tensor(row_ind), torch.tensor(col_ind)], dim=0)
         edge_attr = torch.tensor(adj_matrix[row_ind, col_ind])
 
-        data = Data(edge_index=edge_index, edge_attr=edge_attr, x=None, y=y)
+        data = Graph(edge_index=edge_index, edge_attr=edge_attr, x=None, y=y)
 
         torch.save(data, self.processed_paths[0])
 
@@ -133,6 +137,7 @@ class NetworkEmbeddingCMTYDataset(Dataset):
     def download(self):
         for name in self.raw_file_names:
             download_url(self.url.format(name), self.raw_dir, name=name)
+            time.sleep(0.5)
 
     def process(self):
         filenames = self.raw_paths
@@ -159,7 +164,7 @@ class NetworkEmbeddingCMTYDataset(Dataset):
             labels[cls, i] = 1.0
 
         labels = torch.from_numpy(labels)
-        data = Data(x=None, y=labels, edge_index=edge_index)
+        data = Graph(x=None, y=labels, edge_index=edge_index)
         torch.save(data, self.processed_paths[0])
 
     def __repr__(self):

@@ -1,7 +1,5 @@
 from typing import Optional, Type, Any
-
 import torch.nn as nn
-import torch.nn.functional as F
 
 from cogdl.trainers.base_trainer import BaseTrainer
 
@@ -30,13 +28,13 @@ class BaseModel(nn.Module):
         raise NotImplementedError
 
     def predict(self, data):
-        return self.forward(data.x, data.edge_index)
+        return self.forward(data)
 
     def node_classification_loss(self, data, mask=None):
         if mask is None:
             mask = data.train_mask
-        edge_index = data.edge_index_train if hasattr(data, "edge_index_train") and self.training else data.edge_index
-        pred = self.forward(data.x, edge_index)
+        assert mask.shape[0] == data.y.shape[0]
+        pred = self.forward(data)
         return self.loss_fn(pred[mask], data.y[mask])
 
     def graph_classification_loss(self, batch):
